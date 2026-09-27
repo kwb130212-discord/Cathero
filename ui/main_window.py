@@ -3,12 +3,15 @@ import cv2
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QImage,QPixmap
 from PySide6.QtWidgets import QDoubleSpinBox,QFormLayout,QGroupBox,QHBoxLayout,QLabel,QMainWindow,QPushButton,QSpinBox,QTextEdit,QVBoxLayout,QWidget,QComboBox
+from config.actions import load_action_rules
 from config.settings import Settings
-from core.engine import ActionRule,VisionWorker
+from core.engine import VisionWorker
 from notifications.webhook import WebhookNotifier
 from vision.analyzer import LocalVLM,TemplateAnalyzer
 from vision.capture import ScreenCapture
+
 STYLE='''QMainWindow,QWidget{background:#0d0f12;color:#e8eaed;font-size:13px}QGroupBox{border:1px solid #292e35;border-radius:10px;margin-top:10px;padding:12px}QPushButton{background:#1a1f26;border:1px solid #303640;border-radius:8px;padding:8px 14px}QPushButton:checked{background:#304a63}QLabel#metric{font-size:20px;font-weight:700}QTextEdit{background:#090b0e;border:1px solid #242932;border-radius:8px}'''
+
 class MainWindow(QMainWindow):
     def __init__(self,settings:Settings):
         super().__init__();self.settings=settings;self.setWindowTitle(settings.app_name);self.resize(1180,760);self.setStyleSheet(STYLE)
@@ -25,7 +28,13 @@ class MainWindow(QMainWindow):
         box=QGroupBox('Runtime');form=QFormLayout(box);self.interval=QSpinBox();self.interval.setRange(30,5000);self.interval.setValue(self.settings.analysis_interval_ms);self.threshold=QDoubleSpinBox();self.threshold.setRange(.5,.99);self.threshold.setSingleStep(.01);self.threshold.setValue(self.settings.match_threshold);self.model_status=QComboBox();self.model_status.addItems(['OpenCV only','OpenCV + Local VLM']);self.model_status.setCurrentIndex(1 if self.settings.vlm_enabled else 0);form.addRow('Analysis interval',self.interval);form.addRow('Template threshold',self.threshold);form.addRow('Vision backend',self.model_status);return box
     def start_engine(self):
         if self.worker and self.worker.isRunning():return
-        analyzer=TemplateAnalyzer(threshold=self.threshold.value());vlm=LocalVLM(self.settings.vlm_endpoint,self.settings.vlm_model,self.settings.vlm_timeout) if self.settings.vlm_enabled and self.model_status.currentIndex()==1 else None;notifier=WebhookNotifier(self.settings.discord_webhook_url,self.settings.telegram_bot_token,self.settings.telegram_chat_id);rules=[ActionRule(n,True,False) for n in analyzer.templates];self.worker=VisionWorker(self.settings,ScreenCapture(),analyzer,vlm,notifier,rules);self.worker.frame_ready.connect(self.on_frame);self.worker.detections_ready.connect(self.on_detections);self.worker.metrics_ready.connect(self.on_metrics);self.worker.event.connect(self.append_log);self.worker.error.connect(lambda m:self.append_log('ERROR: '+m));self.worker.start();self.append_log('Engine started')
+        analyzer=TemplateAnalyzer(threshold=self.threshold.value())
+        vlm=LocalVLM(self.settings.vlm_endpoint,self.settings.vlm_model,self.settings.vlm_timeout) if self.settings.vlm_enabled and self.model_status.currentIndex()==1 else None
+        notifier=WebhookNotifier(self.settings.discord_webhook_url,self.settings.telegram_bot_token,self.settings.telegram_chat_id)
+        rules=load_action_rules()
+        self.worker=VisionWorker(self.settings,ScreenCapture(),analyzer,vlm,notifier,rules)
+        self.worker.frame_ready.connect(self.on_frame);self.worker.detections_ready.connect(self.on_detections);self.worker.metrics_ready.connect(self.on_metrics);self.worker.event.connect(self.append_log);self.worker.error.connect(lambda m:self.append_log('ERROR: '+m));self.worker.start()
+        self.append_log(f'Engine started / rules={len(rules)}')
     def stop_engine(self):
         if self.worker:self.worker.stop();self.worker.wait(2000);self.worker=None;self.append_log('Engine stopped')
     def toggle_automation(self,checked):
