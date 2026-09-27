@@ -1,0 +1,7 @@
+{
+  "rules": [
+    {"template": "upgrade", "enabled": true, "click": false},
+    {"template": "reward", "enabled": true, "click": false},
+    {"template": "close", "enabled": true, "click": false}
+  ]
+}

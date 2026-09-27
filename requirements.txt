@@ -1,0 +1,7 @@
+PySide6>=6.8,<7
+opencv-python>=4.10,<5
+mss>=10,<11
+numpy>=2,<3
+pyautogui>=0.9.54,<1
+requests>=2.32,<3
+python-dotenv>=1.0,<2
